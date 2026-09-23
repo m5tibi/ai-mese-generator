@@ -35,7 +35,7 @@ def _register_fonts():
     pdfmetrics.registerFont(TTFont("BookSerif", str(f / "DejaVuSerif.ttf")))
     pdfmetrics.registerFont(TTFont("BookSerif-Bold", str(f / "DejaVuSerif-Bold.ttf")))
     pdfmetrics.registerFont(TTFont("BookSerif-Italic", str(f / "DejaVuSerif-Italic.ttf")))
-    pdfmetrics.registerFont(TTFont("BookSans-Bold", str(f / "DejaVuSans-Bold.ttf")))
+    pdfmetrics.registerFont(TTFont("BookDisplay", str(f / "Fraunces-SoftBold.ttf")))
     pdfmetrics.registerFontFamily(
         "BookSerif", normal="BookSerif", bold="BookSerif-Bold",
         italic="BookSerif-Italic", boldItalic="BookSerif-Bold",
@@ -46,7 +46,7 @@ def _register_fonts():
 def _styles():
     return {
         "cover_title": ParagraphStyle(
-            "CoverTitle", fontName="BookSans-Bold", fontSize=22, leading=28,
+            "CoverTitle", fontName="BookDisplay", fontSize=24, leading=29,
             textColor=INK, alignment=TA_CENTER, spaceAfter=10,
         ),
         "cover_sub": ParagraphStyle(
@@ -58,7 +58,7 @@ def _styles():
             textColor=INK, alignment=TA_CENTER,
         ),
         "chapter": ParagraphStyle(
-            "Chapter", fontName="BookSans-Bold", fontSize=15, leading=20,
+            "Chapter", fontName="BookDisplay", fontSize=16, leading=21,
             textColor=INK, spaceBefore=6, spaceAfter=12,
         ),
         "body": ParagraphStyle(
