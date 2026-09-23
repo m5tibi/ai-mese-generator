@@ -1,0 +1,23 @@
+# A katalógus témái. A sorrend itt a megjelenés sorrendje.
+# A mesék fejlécében a "temak" listában a "kulcs" értékre hivatkozz.
+- kulcs: elalvas
+  nev: Elalváshoz
+  leiras: Lassuló, megnyugtató mesék lefekvés előtt.
+- kulcs: ovi
+  nev: Óvodakezdés
+  leiras: Búcsúzás reggel, új barátok, és hogy délután mindig jön valaki.
+- kulcs: eves
+  nev: Evés, új ízek
+  leiras: Kóstolás kíváncsiságból, nem kényszerből.
+- kulcs: fogmosas
+  nev: Fogmosás
+  leiras: Hogy a fogmosás ne harc legyen, hanem játék.
+- kulcs: testver
+  nev: Kistestvér érkezik
+  leiras: A nagytesó érzései, és hogy a szeretet nem fogy el.
+- kulcs: felelem
+  nev: Félelmek legyőzése
+  leiras: A sötét, az ismeretlen és a bátorság.
+- kulcs: kaland
+  nev: Kaland és barátság
+  leiras: Nagy utazások, új barátok, jó szív.

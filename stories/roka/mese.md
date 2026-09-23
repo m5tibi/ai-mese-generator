@@ -2,6 +2,7 @@
 cim: A bátor kis róka és a titokzatos erdő
 leiras: Egy smaragdzöld kismadár hírt hoz, hogy valaki elvitte az erdő legfényesebb kincsét, a Hajnalcsillagot. A nyomok egy szomorú kisrókához vezetnek.
 korosztaly: 3–7 év
+temak: [kaland, felelem]
 sorrend: 1
 borito: roka.jpeg
 mezok:
@@ -12,6 +13,8 @@ mezok:
 ---
 
 # A kék csillag üzenete
+![](1.jpeg)
+
 
 Egyszer volt, hol nem volt, az üveghegyeken is túl, ott, ahol a nap sugara esténként aranyszínű szőnyeget terített a rétekre, élt egy {kisfiú|kislány}, akit úgy hívtak: {nev}.
 
@@ -22,6 +25,8 @@ Egy hűvös, csillagos estén különös dolog történt. A szoba ablakán neszt
 – Nagy bajban van az Öreg Tölgy az elvarázsolt rengetegben! Valaki elvitte az erdő legfényesebb ékkövét, a Hajnalcsillagot!
 
 # Útban a rengeteg felé
+![](2.jpeg)
+
 
 {nev} egyetlen pillanatig sem habozott. Tudta, hogy aki bajban van, annak segíteni kell. Gyorsan felhúzta a legkényelmesebb túracipőjét, a zsebébe csúsztatta az iránytűt, a hóna alá kapta {plussz+t}, és határozott léptekkel elindult a fák sűrűje felé.
 
@@ -30,6 +35,8 @@ Ahogy haladt az erdei ösvényen, a borókabokrok és az évszázados tölgyek �
 – Vigyázz magadra, bátor {nev}! A jóság a sötétben is utat talál…
 
 # A titokzatos találkozás
+![](3.jpeg)
+
 
 Amikor a tisztásra ért, a holdfény ezüstporral hintette be a füvet. Ott, egy hatalmas kő mögött egy kicsi, vörös bundájú róka ült, és a mancsával törölgette a könnyeit. Előtte ragyogott a Hajnalcsillag.
 
@@ -42,6 +49,8 @@ A kisróka felnézett csillogó szemével, és halkan így felelt:
 – Csak azt szerettem volna, hogy a barlangom ne legyen olyan sötét…
 
 # A barátság ereje
+![](4.jpeg)
+
 
 {nev} szíve ellágyult. Letérdelt a fűbe, megsimogatta a róka selymes fejét, és kedvesen így szólt:
 

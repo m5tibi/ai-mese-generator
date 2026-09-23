@@ -22,6 +22,7 @@ A szerver induláskor tölti be a meséket.
 cim: A bátor kis róka és a titokzatos erdő
 leiras: Rövid ismertető a mesekatalógusba (1–2 mondat).
 korosztaly: 3–7 év
+temak: [kaland, felelem] # a stories/temak.yaml kulcsai közül
 sorrend: 1              # a katalógusban ez alapján rendez
 borito: borito.jpeg     # nem kötelező
 mezok:                  # a névén kívül a szülő által átírható dolgok
@@ -75,10 +76,17 @@ Ilyen mezőben a szülőtől egy egyszerű szót kérj, és a súgóban adj rá 
 
 A szülő a felületen látja, milyen alakban kerül a név a mesébe, és ha kell, kijavíthatja.
 
+## Témák
+
+A témák listája a `stories/temak.yaml`-ban van (kulcs, megjelenő név, rövid leírás). Egy mese több
+témába is tartozhat. A katalógusban csak azok a témák jelennek meg, amelyekben van mese.
+Új témához egyszerűen vegyél fel egy új sort a `temak.yaml`-ba.
+
 ## Képek
 
-A `![](fajl.jpeg)` sor a fejezet illusztrációja (fejezetenként egy). JPEG vagy PNG, nagyjából
-1000 px széles elég. Fekvő és álló kép is jó, a program arányosan méretezi.
+A `![](fajl.jpeg)` sor a fejezet illusztrációja (fejezetenként egy). JPEG vagy PNG, 4:3 fekvő,
+nagyjából 1200 px széles. Ha a fájl még hiányzik, a mese akkor is működik, csak a kép marad ki;
+az ellenőrző script figyelmeztet rá. Képötletek és promptok: `ILLUSZTRACIOK.md`.
 
 ## Ellenőrzés
 
