@@ -38,6 +38,7 @@
 
   <section>
     <h2>A mesék</h2>
+    <div id="chips" class="chips" role="group" aria-label="Témák"></div>
     <div id="catalog" class="catalog"></div>
   </section>
 
@@ -83,24 +84,9 @@ if (params.get("hiba") && notices[params.get("hiba")]) {
   document.getElementById("belepes").scrollIntoView();
 }
 
-fetch("/api/catalog").then((r) => r.json()).then((list) => {
-  const box = document.getElementById("catalog");
-  for (const s of list) {
-    const el = document.createElement("article");
-    el.className = "story";
-    if (s.cover) {
-      const img = document.createElement("img");
-      img.src = s.cover; img.alt = ""; img.loading = "lazy";
-      el.append(img);
-    }
-    const body = document.createElement("div");
-    const h = document.createElement("h3"); h.textContent = s.title;
-    const age = document.createElement("p"); age.className = "age"; age.textContent = s.age;
-    const d = document.createElement("p"); d.textContent = s.description;
-    body.append(h, age, d);
-    el.append(body);
-    box.append(el);
-  }
+import("/assets/catalog.js").then(async ({ renderCatalog }) => {
+  const data = await (await fetch("/api/catalog")).json();
+  renderCatalog({ box: document.getElementById("catalog"), chips: document.getElementById("chips"), data });
 }).catch(() => {});
 
 async function post(url, body) {

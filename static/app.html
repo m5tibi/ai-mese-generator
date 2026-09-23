@@ -18,6 +18,7 @@
 
 <main class="wrap">
   <h1 class="page-title top">Válassz mesét</h1>
+  <div id="chips" class="chips" role="group" aria-label="Témák"></div>
   <div id="picker" class="catalog pick" role="radiogroup" aria-label="Mesék"></div>
 
   <section id="editor" class="panel" hidden>
@@ -50,7 +51,8 @@
   </section>
 </main>
 
-<script>
+<script type="module">
+import { renderCatalog } from "/assets/catalog.js";
 const $ = (id) => document.getElementById(id);
 let stories = [], current = null, overrides = {}, editing = false, previewTimer;
 
@@ -68,19 +70,8 @@ function el(tag, props = {}, ...kids) {
   return e;
 }
 
-function renderPicker() {
-  const box = $("picker");
-  box.innerHTML = "";
-  for (const s of stories) {
-    const card = el("button", { type: "button", className: "story", role: "radio" });
-    card.setAttribute("aria-checked", current?.id === s.id);
-    if (s.cover) card.append(el("img", { src: s.cover, alt: "" }));
-    card.append(el("div", {}, el("h3", { textContent: s.title }), el("p", { className: "age", textContent: s.age }),
-                                el("p", { textContent: s.description })));
-    card.addEventListener("click", () => choose(s));
-    box.append(card);
-  }
-}
+let catalogView;
+function renderPicker() { catalogView?.redraw(); }
 
 function choose(s) {
   current = s; overrides = {}; editing = false;
@@ -200,10 +191,10 @@ $("logout").addEventListener("click", async () => {
 });
 
 (async () => {
-  const [me, list] = await Promise.all([api("/api/me"), api("/api/catalog")]);
+  const [me, data] = await Promise.all([api("/api/me"), api("/api/catalog")]);
   $("who").textContent = me.email;
-  stories = list;
-  renderPicker();
+  stories = data.stories;
+  catalogView = renderCatalog({ box: $("picker"), chips: $("chips"), data, onPick: choose, selectedId: () => current?.id });
   loadHistory();
 })();
 </script>
