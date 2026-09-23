@@ -1,3 +1,12 @@
+@font-face {
+  font-family: "Fraunces"; src: url("/assets/webfonts/fraunces-soft.woff2") format("woff2");
+  font-weight: 600 800; font-style: normal; font-display: swap;
+}
+@font-face {
+  font-family: "Nunito"; src: url("/assets/webfonts/nunito.woff2") format("woff2");
+  font-weight: 200 1000; font-style: normal; font-display: swap;
+}
+
 :root {
   --ink: #1F2A44;        /* éjkék */
   --night: #18213A;
@@ -20,7 +29,7 @@ body {
   font: 400 17px/1.6 "Nunito", system-ui, sans-serif;
 }
 .wrap { max-width: 640px; margin: 0 auto; padding: 0 20px; }
-h1, h2, .brand { font-family: "Caprasimo", Georgia, serif; font-weight: 400; line-height: 1.15; }
+h1, h2, legend, .brand, .story h3 { font-family: "Fraunces", Georgia, serif; font-weight: 700; line-height: 1.15; }
 h2 { font-size: 1.5rem; margin: 2.4rem 0 1rem; }
 a { color: var(--ink); }
 :focus-visible { outline: 3px solid var(--gold); outline-offset: 2px; }
@@ -40,7 +49,7 @@ a { color: var(--ink); }
 /* --- Tartalom --- */
 .steps { padding-left: 1.3rem; margin: 0; }
 .steps li { margin-bottom: .8rem; padding-left: .3rem; }
-.steps li::marker { font-family: "Caprasimo", serif; color: var(--gold); }
+.steps li::marker { font-family: "Fraunces", Georgia, serif; font-weight: 700; color: var(--gold); }
 
 
 .panel { background: var(--paper); border: 1px solid var(--line); border-radius: var(--radius); padding: 24px; margin-top: 2.4rem; }
@@ -52,7 +61,7 @@ a { color: var(--ink); }
 
 /* --- Űrlap --- */
 fieldset { border: 0; padding: 0; margin: 0 0 1.6rem; }
-legend { font-family: "Caprasimo", serif; font-size: 1.25rem; margin-bottom: .2rem; padding: 0; }
+legend { font-size: 1.25rem; margin-bottom: .2rem; padding: 0; }
 label { display: block; font-weight: 700; font-size: .95rem; margin: 1rem 0 .35rem; }
 .opt { font-weight: 400; color: var(--muted); font-size: .85rem; }
 input[type=text], input[type=email], input:not([type]), select {
@@ -105,7 +114,7 @@ button.link { background: none; border: 0; padding: 0; margin: 0 0 0 8px; color:
   border: 1.5px solid var(--line); border-radius: var(--radius); padding: 14px; margin: 0;
 }
 .story img { width: 112px; height: 112px; object-fit: cover; border-radius: 10px; display: block; }
-.story h3 { font-family: "Caprasimo", Georgia, serif; font-weight: 400; font-size: 1.15rem; line-height: 1.2; margin: 0 0 .2rem; }
+.story h3 { font-size: 1.15rem; line-height: 1.2; margin: 0 0 .2rem; }
 .story p { margin: 0; font-size: .95rem; }
 .story .age { color: var(--muted); font-size: .85rem; margin-bottom: .4rem; }
 .pick .story { cursor: pointer; }
