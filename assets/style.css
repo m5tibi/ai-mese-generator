@@ -129,3 +129,4 @@ button.link.dark { color: var(--ink); margin: .4rem 0 0; font-size: .9rem; }
   .story { grid-template-columns: 84px 1fr; gap: 12px; }
   .story img { width: 84px; height: 84px; }
 }
+.primary.wide { width: 100%; margin-top: 0; }
