@@ -138,6 +138,15 @@ def create_login_link(customer_id: int) -> str:
     return f"{config.BASE_URL}/belepes?token={token}"
 
 
+def login_link_valid(token: str) -> bool:
+    """Csak ellenőriz, nem használja el a linket."""
+    with conn() as c:
+        return c.execute(
+            "SELECT 1 FROM login_links WHERE token_hash=%s AND used_at IS NULL AND expires_at > now()",
+            (_hash(token),),
+        ).fetchone() is not None
+
+
 def consume_login_link(token: str):
     """Egyszer használható link. Visszaadja a customer_id-t vagy None-t."""
     with conn() as c:

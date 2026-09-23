@@ -4,7 +4,8 @@ import re
 import unicodedata
 from contextlib import asynccontextmanager
 from typing import Literal
-from urllib.parse import quote
+from html import escape
+from urllib.parse import parse_qs, quote
 
 import stripe
 from fastapi import Cookie, FastAPI, HTTPException, Request
@@ -71,7 +72,7 @@ def _ascii_filename(name: str) -> str:
 
 # --- Oldalak ---------------------------------------------------------------------
 
-@app.get("/", include_in_schema=False)
+@app.api_route("/", methods=["GET", "HEAD"], include_in_schema=False)
 def index():
     html = (config.STATIC_DIR / "index.html").read_text(encoding="utf-8")
     price = f"{config.PRICE_HUF:,}".replace(",", "\u00a0")  # 5 000
@@ -104,7 +105,23 @@ def payment_success(session_id: str = ""):
 
 
 @app.get("/belepes", include_in_schema=False)
-def login_with_link(token: str = ""):
+def login_page(token: str = "", mese_session: str | None = Cookie(default=None)):
+    """A GET nem használja el a linket: a levelezők és vírusirtók linkellenőrzői
+    megnyitják a linkeket, mielőtt a felhasználó rákattintana. A belépés egy gombnyomással
+    (POST) történik, ezt a linkellenőrzők nem csinálják meg."""
+    if db.get_customer_by_session(mese_session):
+        return RedirectResponse("/mesek", status_code=303)
+    if not token or not db.login_link_valid(token):
+        return RedirectResponse("/?hiba=link", status_code=303)
+    html = (config.STATIC_DIR / "belepes.html").read_text(encoding="utf-8")
+    return HTMLResponse(html.replace("{{TOKEN}}", escape(token, quote=True)),
+                        headers={"Cache-Control": "no-store", "Referrer-Policy": "no-referrer"})
+
+
+@app.post("/belepes", include_in_schema=False)
+async def login_with_link(request: Request):
+    form = parse_qs((await request.body()).decode("utf-8", "ignore"))
+    token = (form.get("token") or [""])[0]
     customer_id = db.consume_login_link(token) if token else None
     if not customer_id:
         return RedirectResponse("/?hiba=link", status_code=303)
