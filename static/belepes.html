@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html lang="hu">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>Belépés – Varázslatos Mesék</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Caprasimo&family=Nunito:wght@400;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/assets/style.css">
+</head>
+<body>
+<header class="sky">
+  <div class="wrap">
+    <svg class="moon" viewBox="0 0 40 40" aria-hidden="true"><path d="M27 4a17 17 0 1 0 9 26A14 14 0 0 1 27 4z"/></svg>
+    <h1>Üdv újra!</h1>
+    <p class="lead">Egy kattintás, és már nyílik is a mesekönyvtárad.</p>
+  </div>
+</header>
+<main class="wrap">
+  <form method="post" action="/belepes" class="panel">
+    <input type="hidden" name="token" value="{{TOKEN}}">
+    <button type="submit" class="primary wide">Belépés a mesékhez</button>
+    <p class="hint">Ezen az eszközön 180 napig bejelentkezve maradsz.</p>
+  </form>
+</main>
+</body>
+</html>
