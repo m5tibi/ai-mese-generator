@@ -56,6 +56,8 @@ CREATE INDEX IF NOT EXISTS books_customer_idx ON books (customer_id, created_at 
 
 @contextmanager
 def conn():
+    if not config.DATABASE_URL:
+        raise RuntimeError("Hiányzik a DATABASE_URL környezeti változó (Render → Environment).")
     with psycopg.connect(config.DATABASE_URL, row_factory=dict_row) as c:
         yield c
 
