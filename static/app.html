@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html lang="hu">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Mesekönyvtár – Varázslatos Mesék</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Caprasimo&family=Nunito:wght@400;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/assets/style.css">
+</head>
+<body>
+
+<header class="sky slim">
+  <div class="wrap bar">
+    <a href="/mesek" class="brand">Varázslatos Mesék</a>
+    <span class="who"><span id="who"></span> <button type="button" class="link" id="logout">Kilépés</button></span>
+  </div>
+</header>
+
+<main class="wrap">
+  <h1 class="page-title top">Válassz mesét</h1>
+  <div id="picker" class="catalog pick" role="radiogroup" aria-label="Mesék"></div>
+
+  <section id="editor" class="panel" hidden>
+    <h2 id="ed-title"></h2>
+    <form id="book-form" novalidate>
+      <div class="row">
+        <div><label for="f-nev">A gyermek neve</label><input id="f-nev" maxlength="30" autocomplete="off" placeholder="pl. Lili"></div>
+        <div class="narrow" id="gender-wrap"><label for="gender">Ő egy…</label>
+          <select id="gender"><option value="lany">kislány</option><option value="fiu">kisfiú</option></select></div>
+      </div>
+      <div id="extra-fields"></div>
+
+      <div id="forms" class="forms" hidden>
+        <p class="forms-lead">Így szerepelnek a mesében:</p>
+        <ul id="forms-list"></ul>
+        <button type="button" class="link dark" id="forms-edit">Valamelyik nem jó, kijavítom</button>
+      </div>
+
+      <label for="dedication">Ajánlás a borítóra <span class="opt">nem kötelező</span></label>
+      <textarea id="dedication" maxlength="300" rows="3" placeholder="pl. Lilinek, a legbátrabb felfedezőnek. Szeretettel: Anya és Apa"></textarea>
+
+      <button type="submit" class="primary" id="go">Mesekönyv letöltése</button>
+      <p class="error" id="form-error" role="alert"></p>
+    </form>
+  </section>
+
+  <section>
+    <h2>Elkészült mesekönyveid</h2>
+    <ul id="history" class="history"><li class="empty">Itt jelennek meg a letöltött mesekönyvek, hogy később újra letölthesd őket.</li></ul>
+  </section>
+</main>
+
+<script>
+const $ = (id) => document.getElementById(id);
+let stories = [], current = null, overrides = {}, editing = false, previewTimer;
+
+async function api(url, opts = {}) {
+  const r = await fetch(url, { headers: { "Content-Type": "application/json" }, ...opts });
+  if (r.status === 401) { location.href = "/?belepes=1"; throw new Error(); }
+  const data = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(typeof data.detail === "string" ? data.detail : "Nézd át a kitöltött mezőket.");
+  return data;
+}
+
+function el(tag, props = {}, ...kids) {
+  const e = Object.assign(document.createElement(tag), props);
+  e.append(...kids);
+  return e;
+}
+
+function renderPicker() {
+  const box = $("picker");
+  box.innerHTML = "";
+  for (const s of stories) {
+    const card = el("button", { type: "button", className: "story", role: "radio" });
+    card.setAttribute("aria-checked", current?.id === s.id);
+    if (s.cover) card.append(el("img", { src: s.cover, alt: "" }));
+    card.append(el("div", {}, el("h3", { textContent: s.title }), el("p", { className: "age", textContent: s.age }),
+                                el("p", { textContent: s.description })));
+    card.addEventListener("click", () => choose(s));
+    box.append(card);
+  }
+}
+
+function choose(s) {
+  current = s; overrides = {}; editing = false;
+  renderPicker();
+  $("ed-title").textContent = s.title;
+  $("gender-wrap").hidden = !s.uses_gender;
+  const box = $("extra-fields");
+  box.innerHTML = "";
+  for (const f of s.fields.filter((f) => f.key !== "nev")) {
+    const id = `f-${f.key}`;
+    const label = el("label", { htmlFor: id, textContent: f.label + " " });
+    if (!f.required) label.append(el("span", { className: "opt", textContent: "nem kötelező" }));
+    box.append(label, el("input", { id, maxLength: 30, placeholder: f.default ? `pl. ${f.default}` : "", autocomplete: "off" }));
+    if (f.hint) box.append(el("p", { className: "hint", textContent: f.hint }));
+  }
+  box.querySelectorAll("input").forEach((i) => i.addEventListener("input", schedulePreview));
+  $("form-error").textContent = "";
+  $("forms").hidden = true;
+  $("editor").hidden = false;
+  $("editor").scrollIntoView({ behavior: "smooth", block: "start" });
+  $("f-nev").focus({ preventScroll: true });
+  schedulePreview();
+}
+
+function collect() {
+  const fields = {};
+  for (const f of current.fields) fields[f.key] = ($(`f-${f.key}`)?.value || "").trim();
+  return {
+    story_id: current.id, gender: $("gender").value, fields,
+    overrides, dedication: $("dedication").value.trim() || null,
+  };
+}
+
+function schedulePreview() {
+  clearTimeout(previewTimer);
+  previewTimer = setTimeout(preview, 350);
+}
+
+async function preview() {
+  if (!current || !$("f-nev").value.trim()) { $("forms").hidden = true; return; }
+  try {
+    const { forms } = await api("/api/preview", { method: "POST", body: JSON.stringify(collect()) });
+    renderForms(forms);
+    $("form-error").textContent = "";
+  } catch (ex) { $("forms").hidden = true; }
+}
+
+function renderForms(groups) {
+  const ul = $("forms-list");
+  ul.innerHTML = "";
+  if (!groups.length) { $("forms").hidden = true; return; }
+  for (const g of groups) {
+    const li = el("li", {}, el("strong", { textContent: g.value + ": " }));
+    g.forms.forEach((f, i) => {
+      if (editing) {
+        const inp = el("input", { value: f.form, className: "form-input", maxLength: 40 });
+        inp.setAttribute("aria-label", `${g.value} ragozott alakja`);
+        inp.addEventListener("input", () => { overrides[f.key] = inp.value.trim(); });
+        li.append(inp);
+      } else {
+        li.append(document.createTextNode(f.form + (i < g.forms.length - 1 ? ", " : "")));
+      }
+    });
+    ul.append(li);
+  }
+  $("forms-edit").hidden = editing;
+  $("forms").hidden = false;
+}
+
+$("forms-edit").addEventListener("click", () => { editing = true; preview(); });
+$("f-nev").addEventListener("input", () => { overrides = {}; editing = false; schedulePreview(); });
+$("gender").addEventListener("change", schedulePreview);
+
+async function loadHistory() {
+  const list = await api("/api/books");
+  const ul = $("history");
+  if (!list.length) return;
+  ul.innerHTML = "";
+  for (const b of list) {
+    const date = new Date(b.created_at).toLocaleDateString("hu-HU", { month: "long", day: "numeric" });
+    const li = el("li", {}, el("span", { className: "t", textContent: b.title }),
+                            el("span", { className: "m", textContent: `${b.child_name}, ${date}` }));
+    const actions = el("span", { className: "acts" });
+    if (b.available) actions.append(el("a", { href: `/api/books/${b.id}/pdf`, textContent: "Letöltés" }));
+    const del = el("button", { type: "button", className: "link dark", textContent: "Törlés" });
+    del.addEventListener("click", async () => {
+      if (!confirm(`Törlöd „${b.title}” (${b.child_name}) mesekönyvet a listából?`)) return;
+      await api(`/api/books/${b.id}`, { method: "DELETE" });
+      li.remove();
+    });
+    actions.append(del);
+    li.append(actions);
+    ul.append(li);
+  }
+}
+
+$("book-form").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  $("form-error").textContent = "";
+  if (!$("f-nev").value.trim()) { $("form-error").textContent = "Add meg a gyermek nevét."; $("f-nev").focus(); return; }
+  const btn = $("go");
+  btn.disabled = true; btn.textContent = "Mesekönyv készül…";
+  try {
+    const { pdf } = await api("/api/books", { method: "POST", body: JSON.stringify(collect()) });
+    location.href = pdf;
+    loadHistory();
+  } catch (ex) {
+    $("form-error").textContent = ex.message;
+  } finally {
+    btn.disabled = false; btn.textContent = "Mesekönyv letöltése";
+  }
+});
+
+$("logout").addEventListener("click", async () => {
+  await fetch("/api/logout", { method: "POST" });
+  location.href = "/";
+});
+
+(async () => {
+  const [me, list] = await Promise.all([api("/api/me"), api("/api/catalog")]);
+  $("who").textContent = me.email;
+  stories = list;
+  renderPicker();
+  loadHistory();
+})();
+</script>
+</body>
+</html>

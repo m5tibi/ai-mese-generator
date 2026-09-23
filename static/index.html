@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="hu">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Varázslatos Mesék – esti mese, amelyben a gyereked a főszereplő</title>
+<meta name="description" content="Illusztrált esti mesék PDF-ben, amelyekben a gyereked a főszereplő: az ő nevével, a kedvenceivel.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Caprasimo&family=Nunito:wght@400;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/assets/style.css">
+</head>
+<body>
+
+<header class="sky">
+  <svg class="stars" viewBox="0 0 400 160" preserveAspectRatio="none" aria-hidden="true">
+    <circle cx="30" cy="30" r="1.4"/><circle cx="92" cy="72" r="1"/><circle cx="150" cy="24" r="1.6"/>
+    <circle cx="214" cy="58" r="1"/><circle cx="268" cy="18" r="1.2"/><circle cx="330" cy="80" r="1.5"/>
+    <circle cx="372" cy="36" r="1"/><circle cx="60" cy="126" r="1"/><circle cx="246" cy="130" r="1.3"/>
+  </svg>
+  <div class="wrap">
+    <svg class="moon" viewBox="0 0 40 40" aria-hidden="true"><path d="M27 4a17 17 0 1 0 9 26A14 14 0 0 1 27 4z"/></svg>
+    <h1>Esti mese, amelyben a gyereked a főszereplő</h1>
+    <p class="lead">Választasz egy mesét, beírod a gyereked nevét és a kedvenceit, és azonnal letöltheted az illusztrált mesekönyvet PDF-ben, felolvasásra vagy nyomtatásra.</p>
+  </div>
+</header>
+
+<main class="wrap">
+  <div id="notice" class="notice" hidden></div>
+
+  <section>
+    <h2>Így működik</h2>
+    <ol class="steps">
+      <li><strong>Egyszer fizetsz.</strong> {{PRICE}} Ft, előfizetés nélkül.</li>
+      <li><strong>Választasz a mesék közül.</strong> Az összes mese a tiéd, az újak is.</li>
+      <li><strong>Beírod a nevét és a kedvenceit.</strong> A mese végig az ő nevével szól, helyes ragozással.</li>
+      <li><strong>Letöltöd a mesekönyvet.</strong> Akárhány példányban, testvéreknek, unokatestvéreknek is.</li>
+    </ol>
+  </section>
+
+  <section>
+    <h2>A mesék</h2>
+    <div id="catalog" class="catalog"></div>
+  </section>
+
+  <section id="vasarlas" class="panel">
+    <h2>Hozzáférés megvásárlása</h2>
+    <form id="buy-form" novalidate>
+      <label for="email">E-mail címed</label>
+      <input type="email" id="email" required autocomplete="email" placeholder="szulo@pelda.hu">
+      <p class="hint">Ide küldjük a belépési linket, így bármelyik eszközödről elérheted a meséket.</p>
+      <button type="submit" class="primary" id="buy-btn">Tovább a fizetéshez – {{PRICE}} Ft</button>
+      <p class="error" id="buy-error" role="alert"></p>
+    </form>
+  </section>
+
+  <section id="belepes" class="panel quiet">
+    <h2>Már vásároltál?</h2>
+    <form id="login-form" novalidate>
+      <label for="login-email">A vásárláskor megadott e-mail cím</label>
+      <input type="email" id="login-email" required autocomplete="email">
+      <button type="submit" class="secondary" id="login-btn">Belépési link küldése</button>
+      <p class="ok" id="login-ok" role="status"></p>
+    </form>
+  </section>
+</main>
+
+<footer class="wrap foot">
+  <p>A megadott neveket csak a mesekönyv elkészítéséhez használjuk. A mentett meséidet bármikor törölheted.</p>
+</footer>
+
+<script>
+const params = new URLSearchParams(location.search);
+const notices = {
+  fizetes: "A fizetés nem zárult le. Nem terheltünk meg semmit, próbáld újra.",
+  link: "Ez a belépési link lejárt vagy már felhasználták. Kérj újat lent.",
+};
+const notice = document.getElementById("notice");
+if (params.get("hiba") && notices[params.get("hiba")]) {
+  notice.textContent = notices[params.get("hiba")];
+  notice.hidden = false;
+} else if (params.has("belepes")) {
+  notice.textContent = "A mesék eléréséhez lépj be: kérj belépési linket az e-mail címedre.";
+  notice.hidden = false;
+  document.getElementById("belepes").scrollIntoView();
+}
+
+fetch("/api/catalog").then((r) => r.json()).then((list) => {
+  const box = document.getElementById("catalog");
+  for (const s of list) {
+    const el = document.createElement("article");
+    el.className = "story";
+    if (s.cover) {
+      const img = document.createElement("img");
+      img.src = s.cover; img.alt = ""; img.loading = "lazy";
+      el.append(img);
+    }
+    const body = document.createElement("div");
+    const h = document.createElement("h3"); h.textContent = s.title;
+    const age = document.createElement("p"); age.className = "age"; age.textContent = s.age;
+    const d = document.createElement("p"); d.textContent = s.description;
+    body.append(h, age, d);
+    el.append(body);
+    box.append(el);
+  }
+}).catch(() => {});
+
+async function post(url, body) {
+  const r = await fetch(url, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+  const data = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(typeof data.detail === "string" ? data.detail : "Ellenőrizd az e-mail címet.");
+  return data;
+}
+
+document.getElementById("buy-form").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const btn = document.getElementById("buy-btn"), err = document.getElementById("buy-error");
+  const label = btn.textContent;
+  err.textContent = "";
+  btn.disabled = true; btn.textContent = "Fizetési oldal megnyitása…";
+  try {
+    const { url } = await post("/api/checkout", { email: document.getElementById("email").value });
+    location.href = url;
+  } catch (ex) {
+    err.textContent = ex.message;
+    btn.disabled = false; btn.textContent = label;
+  }
+});
+
+document.getElementById("login-form").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const btn = document.getElementById("login-btn"), ok = document.getElementById("login-ok");
+  btn.disabled = true;
+  try {
+    await post("/api/login-link", { email: document.getElementById("login-email").value });
+    ok.textContent = "Ha ezzel a címmel vásároltál, pár percen belül megérkezik a belépési link.";
+  } catch (ex) {
+    ok.textContent = ex.message;
+  } finally {
+    btn.disabled = false;
+  }
+});
+</script>
+</body>
+</html>
