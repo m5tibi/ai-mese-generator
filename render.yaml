@@ -1,0 +1,28 @@
+services:
+  - type: web
+    name: ai-mese-generator
+    runtime: python
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT --proxy-headers
+    healthCheckPath: /healthz
+    envVars:
+      - key: BASE_URL
+        value: https://ai-mese-generator.onrender.com
+      - key: DATABASE_URL
+        fromDatabase:
+          name: mese-db
+          property: connectionString
+      - key: STRIPE_SECRET_KEY
+        sync: false
+      - key: STRIPE_WEBHOOK_SECRET
+        sync: false
+      - key: RESEND_API_KEY
+        sync: false
+      - key: EMAIL_FROM
+        sync: false
+      - key: PRICE_HUF
+        value: "5000"
+
+databases:
+  - name: mese-db
+    plan: free
