@@ -2,7 +2,7 @@ import io
 from xml.sax.saxutils import escape
 
 from reportlab.lib import colors
-from reportlab.lib.enums import TA_CENTER, TA_JUSTIFY
+from reportlab.lib.enums import TA_CENTER, TA_LEFT
 from reportlab.lib.pagesizes import A5
 from reportlab.lib.styles import ParagraphStyle
 from reportlab.pdfbase import pdfmetrics
@@ -26,6 +26,10 @@ GOLD = colors.HexColor("#D9A23A")
 MUTED = colors.HexColor("#6B7385")
 
 _fonts_ready = False
+
+# A fejezetképek magassága (pt): akkora, hogy a fejezet lehetőleg egy oldalra férjen
+MAX_IMG_H = 230
+MIN_IMG_H = 120
 
 
 def _register_fonts():
@@ -62,9 +66,13 @@ def _styles():
             "Chapter", fontName="BookDisplay", fontSize=16, leading=21,
             textColor=INK, spaceBefore=6, spaceAfter=12,
         ),
+        "the_end": ParagraphStyle(
+            "TheEnd", fontName="BookSerif-Italic", fontSize=12, leading=17,
+            textColor=MUTED, alignment=TA_CENTER, spaceBefore=10,
+        ),
         "body": ParagraphStyle(
             "Body", fontName="BookSerif", fontSize=11.5, leading=18.5,
-            textColor=INK, alignment=TA_JUSTIFY, spaceAfter=9,
+            textColor=INK, alignment=TA_LEFT, spaceAfter=9,
         ),
     }
 
@@ -132,20 +140,37 @@ def build_pdf(book: dict) -> bytes:
     flow.append(PageBreak())
 
     chapters = book["chapters"]
+    frame_w = doc.width - 12           # a Frame alapból 6 pt belső margót használ
+    frame_h = doc.height - 12
     for i, ch in enumerate(chapters):
-        img = _image(ch.get("image"), content_w * 0.8, 210)
-        paragraphs = ch["paragraphs"]
+        title = Paragraph(escape(ch["title"]), s["chapter"]) if ch.get("title") else None
+        paras = [Paragraph(escape(p), s["body"]) for p in ch["paragraphs"]]
+        if i == len(chapters) - 1:
+            paras.append(Paragraph("Vége", s["the_end"]))
+
+        # Mennyi hely marad a képnek, hogy a fejezet egy oldalra férjen?
+        text_h = sum(p.wrap(frame_w, frame_h)[1] + p.style.spaceBefore + p.style.spaceAfter for p in paras)
+        if title:
+            text_h += title.wrap(frame_w, frame_h)[1] + s["chapter"].spaceBefore + s["chapter"].spaceAfter
+        room = frame_h - text_h - 14 - 4   # kép alatti térköz + biztonsági ráhagyás
+        if room >= MIN_IMG_H:
+            img = _image(ch.get("image"), content_w * 0.85, min(MAX_IMG_H, room))
+        else:
+            # Hosszú fejezet: a kép egész oldalt kap a szöveg előtt, mint egy képeskönyvben
+            full = _image(ch.get("image"), frame_w, frame_h - 40)
+            if full:
+                flow += [Spacer(1, max(0, (frame_h - full.drawHeight) / 2 - 10)), full, PageBreak()]
+            img = None
+
         head = [img, Spacer(1, 12)] if img else []
-        if ch.get("title"):
-            head.append(Paragraph(escape(ch["title"]), s["chapter"]))
-        if paragraphs:
-            head.append(Paragraph(escape(paragraphs[0]), s["body"]))
+        if title:
+            head.append(title)
+        if paras:
+            head.append(paras[0])
         flow.append(KeepTogether(head))
-        for p in paragraphs[1:]:
-            flow.append(Paragraph(escape(p), s["body"]))
+        flow.extend(paras[1:])
         if i < len(chapters) - 1:
             flow.append(PageBreak())
 
-    flow += [Spacer(1, 14), Paragraph("Vége", s["cover_sub"])]
     doc.build(flow, onFirstPage=decorate, onLaterPages=decorate)
     return buf.getvalue()
