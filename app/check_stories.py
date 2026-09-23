@@ -8,13 +8,18 @@ SAMPLES = [("Bence", "fiu"), ("Zsófi", "lany"), ("Ábel", "fiu")]
 
 
 def main():
+    import logging
+    logging.disable(logging.WARNING)
     templates.load_all()
     out = Path("proof")
     out.mkdir(exist_ok=True)
     for slug, err in templates.errors().items():
         print(f"HIBA  {slug}: {err}")
     for story in templates.catalog():
-        print(f"OK    {story.slug}: {story.title} ({len(story.chapters)} fejezet)")
+        themes = ", ".join(story.themes) or "nincs téma!"
+        print(f"OK    {story.slug}: {story.title} ({len(story.chapters)} fejezet; {themes})")
+        for w in story.warnings:
+            print(f"        ! {w}")
         for name, gender in SAMPLES:
             values = templates.clean_values(story, {"nev": name})
             forms = templates.word_forms(story, values)

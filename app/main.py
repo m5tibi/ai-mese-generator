@@ -219,7 +219,7 @@ def me(mese_session: str | None = Cookie(default=None)):
 
 @app.get("/api/catalog")
 def catalog():
-    return [s.public() for s in templates.catalog()]
+    return {"themes": templates.themes(), "stories": [s.public() for s in templates.catalog()]}
 
 
 class BookIn(BaseModel):

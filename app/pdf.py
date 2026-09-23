@@ -17,6 +17,7 @@ from reportlab.platypus import (
 )
 
 from PIL import Image as PILImage
+from reportlab.graphics.shapes import Circle, Drawing
 
 from . import config
 
@@ -79,6 +80,17 @@ def _image(path, max_w: float, max_h: float):
     return img
 
 
+def _moon(width: float) -> Drawing:
+    """Díszítés a borítóra, amíg a mesének nincs borítóképe."""
+    d = Drawing(width, 170)
+    cx = width / 2
+    d.add(Circle(cx, 85, 52, fillColor=GOLD, strokeColor=None))
+    d.add(Circle(cx + 24, 100, 48, fillColor=colors.white, strokeColor=None))
+    for x, y, r in [(-95, 140, 2.6), (-60, 40, 1.8), (80, 150, 2.2), (110, 60, 1.6), (-120, 90, 1.4), (55, 20, 1.5)]:
+        d.add(Circle(cx + x, y, r, fillColor=GOLD, strokeColor=None))
+    return d
+
+
 def build_pdf(book: dict) -> bytes:
     """book: templates.render() kimenete."""
     _register_fonts()
@@ -114,7 +126,7 @@ def build_pdf(book: dict) -> bytes:
     if cover:
         flow += [cover, Spacer(1, 16)]
     else:
-        flow.append(Spacer(1, 60))
+        flow += [Spacer(1, 30), _moon(content_w), Spacer(1, 30)]
     if book.get("dedication"):
         flow.append(Paragraph(escape(book["dedication"]).replace("\n", "<br/>"), s["dedication"]))
     flow.append(PageBreak())

@@ -50,6 +50,8 @@ class Story:
     chapters: list[Chapter]
     uses_gender: bool = False
     slots: set = field(default_factory=set)   # {(kulcs, rag)}
+    themes: list = field(default_factory=list)
+    warnings: list = field(default_factory=list)
 
     def field(self, key: str) -> dict | None:
         return next((f for f in self.fields if f["kulcs"] == key), None)
@@ -62,6 +64,7 @@ class Story:
             "age": self.age,
             "cover": f"/stories/{self.slug}/{self.cover.name}" if self.cover else None,
             "uses_gender": self.uses_gender,
+            "themes": self.themes,
             "fields": [
                 {"key": f["kulcs"], "label": f["cimke"], "default": f.get("alapertelmezes", ""),
                  "required": bool(f.get("kotelezo")), "hint": f.get("sugo", "")}
@@ -82,7 +85,7 @@ def _split_front_matter(text: str) -> tuple[dict, str]:
     return meta, body
 
 
-def _parse_body(body: str, folder: Path) -> list[Chapter]:
+def _parse_body(body: str, folder: Path, warnings: list) -> list[Chapter]:
     chapters: list[Chapter] = []
     current = None
     buf: list[str] = []
@@ -106,9 +109,10 @@ def _parse_body(body: str, folder: Path) -> list[Chapter]:
         if m:
             flush_paragraph()
             path = folder / m.group(1)
-            if not path.exists():
-                raise StoryError(f"Nem található kép: {m.group(1)}")
-            current.image = path
+            if path.exists():
+                current.image = path
+            else:
+                warnings.append(f"Hiányzó kép: {m.group(1)} ({current.title})")
         elif not line.strip():
             flush_paragraph()
         else:
@@ -162,11 +166,18 @@ def load_story(folder: Path) -> Story:
             raise StoryError(f"A nem kötelező '{f['kulcs']}' mezőnek kell alapértelmezés")
         fields.append(f)
 
+    warnings: list[str] = []
     cover = folder / meta["borito"] if meta.get("borito") else None
     if cover and not cover.exists():
-        raise StoryError(f"Nem található a borítókép: {meta['borito']}")
+        warnings.append(f"Hiányzó borítókép: {meta['borito']}")
+        cover = None
 
-    chapters = _parse_body(body, folder)
+    themes = [str(t) for t in (meta.get("temak") or [])]
+    unknown = [t for t in themes if t not in _themes]
+    if unknown:
+        raise StoryError(f"Ismeretlen téma: {', '.join(unknown)} (lásd stories/temak.yaml)")
+
+    chapters = _parse_body(body, folder, warnings)
     texts = [meta["cim"]] + [c.title for c in chapters] + [p for c in chapters for p in c.paragraphs]
     slots, uses_gender = _scan_slots(texts, {f["kulcs"] for f in fields})
 
@@ -175,19 +186,35 @@ def load_story(folder: Path) -> Story:
         description=str(meta.get("leiras", "")), age=str(meta.get("korosztaly", "")),
         order=int(meta.get("sorrend", 100)), cover=cover, fields=fields,
         chapters=chapters, uses_gender=uses_gender, slots=slots,
+        themes=themes, warnings=warnings,
     )
 
 
 _catalog: dict[str, Story] = {}
 _errors: dict[str, str] = {}
+_themes: dict[str, dict] = {}
+
+
+def _load_themes():
+    _themes.clear()
+    path = config.STORIES_DIR / "temak.yaml"
+    if not path.exists():
+        return
+    for i, t in enumerate(yaml.safe_load(path.read_text(encoding="utf-8")) or []):
+        _themes[str(t["kulcs"])] = {"id": str(t["kulcs"]), "label": str(t["nev"]),
+                                    "description": str(t.get("leiras", "")), "order": i}
 
 
 def load_all() -> dict[str, Story]:
     _catalog.clear()
     _errors.clear()
+    _load_themes()
     for folder in sorted(p for p in config.STORIES_DIR.iterdir() if (p / "mese.md").exists()):
         try:
-            _catalog[folder.name] = load_story(folder)
+            story = load_story(folder)
+            _catalog[folder.name] = story
+            for w in story.warnings:
+                log.warning("%s: %s", folder.name, w)
         except (StoryError, yaml.YAMLError, OSError, ValueError) as e:
             _errors[folder.name] = str(e)
             log.error("Hibás mese kihagyva (%s): %s", folder.name, e)
@@ -197,6 +224,12 @@ def load_all() -> dict[str, Story]:
 
 def catalog() -> list[Story]:
     return sorted(_catalog.values(), key=lambda s: (s.order, s.title))
+
+
+def themes() -> list[dict]:
+    """Csak azok a témák, amelyekben van mese."""
+    used = {t for s in _catalog.values() for t in s.themes}
+    return [t for t in sorted(_themes.values(), key=lambda t: t["order"]) if t["id"] in used]
 
 
 def get(slug: str) -> Story | None:
@@ -212,8 +245,9 @@ def errors() -> dict[str, str]:
 def _normalize_value(value: str, kind: str) -> str:
     value = re.sub(r"\s+", " ", value).strip()
     if kind == "nev":
-        # lili -> Lili, anna-mária -> Anna-Mária
+        # lili -> Lili, anna-mária -> Anna-Mária, de: Kati néni, Laci bácsi
         value = re.sub(r"(^|[ \-])(\w)", lambda m: m.group(1) + m.group(2).upper(), value)
+        value = re.sub(r"(?<= )(Néni|Bácsi)\b", lambda m: m.group(0).lower(), value)
     return value
 
 
