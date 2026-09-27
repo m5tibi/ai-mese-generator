@@ -17,6 +17,7 @@ app/
   pdf.py             A5-ös mesekönyv PDF (ReportLab)
   db.py              Postgres (vásárlók, belépések, mentett mesekönyvek)
   emailer.py         e-mailek (Resend)
+  ratelimit.py       kérések korlátozása (belépési link, fizetés)
   check_stories.py   mesék ellenőrzése, minta PDF-ek
 stories/             a mesék, mesénként egy mappa; írási útmutató: stories/README.md
 static/              index.html (főoldal, katalógus, vásárlás), app.html (mesekönyvtár)
@@ -27,7 +28,8 @@ assets/              CSS, betűtípusok
 
 1. Főoldal: katalógus, e-mail cím, Stripe Checkout.
 2. Fizetés után a `/sikeres?session_id=...` oldalon a szerver ellenőrzi a fizetést, beléptet
-   (httpOnly süti), és e-mailben belépési linket küld.
+   (httpOnly süti), és e-mailben belépési linket küld. Ez az oldal csak egyszer és a vásárlás
+   után 60 percig léptet be, mert az URL a böngészőelőzményekben megmarad.
 3. `/mesek`: mese kiválasztása, adatok, letöltés. A mentett mesekönyvek újra letölthetők vagy törölhetők.
    A PDF letöltéskor készül, így ha javítasz egy mesén, a régi mesekönyvek is a javított szöveggel jönnek le.
 4. Más eszközön: főoldal, „Belépési link küldése” (egyszer használható, 60 percig érvényes).
@@ -42,9 +44,22 @@ uvicorn app.main:app --reload --port 10000
 stripe listen --forward-to localhost:10000/webhook
 ```
 
+## Tesztek
+
+```bash
+pip install -r requirements-dev.txt
+python -m pytest                       # toldalékolás (adatbázis nélkül)
+TEST_DATABASE_URL=postgresql://user:pass@localhost:5432/mese_test python -m pytest
+```
+
+A `TEST_DATABASE_URL`-es tesztek a fizetést, a belépést és a mesekönyveket is végigpróbálják
+(a Stripe és az e-mail mockolva). Minden táblát ürítenek, ezért csak külön tesztadatbázison futtasd.
+
 ## Render
 
 A `render.yaml` létrehozza a webszolgáltatást és egy Postgres adatbázist. A titkos kulcsokat a
 Render felületén kell megadni. Stripe webhook: `https://<domain>/webhook`, esemény:
-`checkout.session.completed`. A Render ingyenes Postgres példánya korlátozott ideig él;
+`checkout.session.completed`. Csak azokat a fizetéseket fogadjuk el, amelyek Checkout
+sessionjének metadata-jában `product=varazslatos-mesek` áll (ezt a `/api/checkout` állítja be),
+így a Stripe-fiók más termékei nem adnak hozzáférést. A Render ingyenes Postgres példánya korlátozott ideig él;
 tartós használatra fizetős csomag vagy külső Postgres (pl. Supabase) kell.

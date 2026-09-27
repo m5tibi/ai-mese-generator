@@ -3,9 +3,9 @@ import secrets
 import uuid
 from contextlib import contextmanager
 
-import psycopg
 from psycopg.rows import dict_row
 from psycopg.types.json import Jsonb
+from psycopg_pool import ConnectionPool
 
 from . import config
 
@@ -51,14 +51,19 @@ CREATE TABLE IF NOT EXISTS books (
 );
 
 CREATE INDEX IF NOT EXISTS books_customer_idx ON books (customer_id, created_at DESC);
+
+-- A /sikeres oldal csak egyszer léptet be (a session_id az URL-ben van, előzményekben megmarad)
+ALTER TABLE purchases ADD COLUMN IF NOT EXISTS success_login_at TIMESTAMPTZ;
 """
+
+_pool: ConnectionPool | None = None
 
 
 @contextmanager
 def conn():
-    if not config.DATABASE_URL:
-        raise RuntimeError("Hiányzik a DATABASE_URL környezeti változó (Render → Environment).")
-    with psycopg.connect(config.DATABASE_URL, row_factory=dict_row) as c:
+    if _pool is None:
+        raise RuntimeError("Az adatbázis nincs inicializálva (init_db).")
+    with _pool.connection() as c:
         yield c
 
 
@@ -67,8 +72,32 @@ def _hash(token: str) -> str:
 
 
 def init_db():
+    global _pool
+    if not config.DATABASE_URL:
+        raise RuntimeError("Hiányzik a DATABASE_URL környezeti változó (Render → Environment).")
+    if _pool is None:
+        # check: a Render/Supabase a tétlen kapcsolatokat bontja, ezért kiadás előtt ellenőrizzük
+        _pool = ConnectionPool(
+            config.DATABASE_URL, min_size=1, max_size=10, open=True,
+            kwargs={"row_factory": dict_row}, check=ConnectionPool.check_connection,
+        )
     with conn() as c:
         c.execute(SCHEMA)
+    cleanup_expired()
+
+
+def close_db():
+    global _pool
+    if _pool is not None:
+        _pool.close()
+        _pool = None
+
+
+def cleanup_expired():
+    """Lejárt munkamenetek és belépési linkek törlése."""
+    with conn() as c:
+        c.execute("DELETE FROM sessions WHERE expires_at < now()")
+        c.execute("DELETE FROM login_links WHERE expires_at < now() - interval '1 day'")
 
 
 # --- Vásárlók ---------------------------------------------------------------
@@ -89,6 +118,19 @@ def record_purchase(email: str, session_id: str, amount: int | None, currency: s
             (session_id, customer_id, amount, currency),
         )
         return customer_id, cur.rowcount == 1
+
+
+def claim_success_login(session_id: str, max_minutes: int):
+    """A fizetés utáni automatikus belépés egyszer, és csak a vásárlás után röviddel használható.
+    Visszaadja a customer_id-t vagy None-t."""
+    with conn() as c:
+        row = c.execute(
+            "UPDATE purchases SET success_login_at=now() "
+            "WHERE stripe_session_id=%s AND success_login_at IS NULL "
+            "AND created_at > now() - make_interval(mins => %s) RETURNING customer_id",
+            (session_id, max_minutes),
+        ).fetchone()
+        return row["customer_id"] if row else None
 
 
 def get_customer_by_email(email: str):

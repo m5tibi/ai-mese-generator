@@ -61,14 +61,12 @@ def harmony(word: str) -> int:
     if last in FRONT_ROUNDED:
         return 2
     if last in "ií":
-        # Az i/í semleges: a korábbi magánhangzó dönt (Zsófi -> Zsófival, Lili -> Lilivel)
+        # Az i/í semleges: a korábbi magánhangzó dönt (Zsófi -> Zsófival, Lili -> Lilivel).
+        # Magas előzménynél a -hez alak jár, ajakkerekítéses után is (Öcsihez, Pötyihez),
+        # mert a szó utolsó magánhangzója (i) nem ajakkerekítéses.
         for v in reversed(vowels):
-            if v in BACK:
-                return 0
-            if v in FRONT_ROUNDED:
-                return 2
-            if v in "eé":
-                return 1
+            if v not in "ií":
+                return 0 if v in BACK else 1
         return 1
     # e / é: magánhangzóra végződő, mély elemet tartalmazó szó mély (Máté -> Mátéval)
     if w.endswith(last) and any(v in BACK for v in vowels):
@@ -125,6 +123,9 @@ def inflect(word: str, suffix: str) -> str:
         w = word.lower()
         cons = _last_consonant(word)
         before = w[: -len(cons)]
+        # kettőzött alak is (Marcellt, Kornellt), de: Anettet, Bernadettet (a t nincs a listában)
+        if cons in SONORANT_SIBILANT and len(cons) == 1 and before.endswith(cons):
+            before = before[:-1]
         if cons in SONORANT_SIBILANT and before and before[-1] in VOWELS:
             return word + "t"
         return word + ("ot", "et", "öt")[h]
