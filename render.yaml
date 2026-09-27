@@ -22,6 +22,9 @@ services:
         sync: false
       - key: PRICE_HUF
         value: "5000"
+      # a --proxy-headers csak ezzel veszi át a Render proxy X-Forwarded-For fejlécét
+      - key: FORWARDED_ALLOW_IPS
+        value: "*"
 
 databases:
   - name: mese-db

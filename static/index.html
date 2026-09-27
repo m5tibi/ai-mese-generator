@@ -73,6 +73,8 @@ const params = new URLSearchParams(location.search);
 const notices = {
   fizetes: "A fizetés nem zárult le. Nem terheltünk meg semmit, próbáld újra.",
   link: "Ez a belépési link lejárt vagy már felhasználták. Kérj újat lent.",
+  sikeres: "A fizetés rendben van, de ez a visszaigazoló link már nem léptet be. Kérj belépési linket lent a vásárláskor megadott e-mail címre.",
+  ellenorzes: "A fizetést nem tudtuk a hozzáféréshez rendelni. Ha terhelés történt, kérj belépési linket lent a vásárláskor megadott e-mail címre.",
 };
 const notice = document.getElementById("notice");
 if (params.get("hiba") && notices[params.get("hiba")]) {
@@ -83,6 +85,7 @@ if (params.get("hiba") && notices[params.get("hiba")]) {
   notice.hidden = false;
   document.getElementById("belepes").scrollIntoView();
 }
+if (["sikeres", "ellenorzes"].includes(params.get("hiba"))) document.getElementById("belepes").scrollIntoView();
 
 import("/assets/catalog.js").then(async ({ renderCatalog }) => {
   const data = await (await fetch("/api/catalog")).json();

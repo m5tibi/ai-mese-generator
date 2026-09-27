@@ -47,7 +47,7 @@
 
   <section>
     <h2>Elkészült mesekönyveid</h2>
-    <ul id="history" class="history"><li class="empty">Itt jelennek meg a letöltött mesekönyvek, hogy később újra letölthesd őket.</li></ul>
+    <ul id="history" class="history"></ul>
   </section>
 </main>
 
@@ -145,11 +145,17 @@ $("forms-edit").addEventListener("click", () => { editing = true; preview(); });
 $("f-nev").addEventListener("input", () => { overrides = {}; editing = false; schedulePreview(); });
 $("gender").addEventListener("change", schedulePreview);
 
+const EMPTY_HISTORY = "Itt jelennek meg a letöltött mesekönyvek, hogy később újra letölthesd őket.";
+function showEmptyHistory() {
+  const ul = $("history");
+  if (!ul.children.length) ul.append(el("li", { className: "empty", textContent: EMPTY_HISTORY }));
+}
+
 async function loadHistory() {
   const list = await api("/api/books");
   const ul = $("history");
-  if (!list.length) return;
   ul.innerHTML = "";
+  if (!list.length) { showEmptyHistory(); return; }
   for (const b of list) {
     const date = new Date(b.created_at).toLocaleDateString("hu-HU", { month: "long", day: "numeric" });
     const li = el("li", {}, el("span", { className: "t", textContent: b.title }),
@@ -159,8 +165,13 @@ async function loadHistory() {
     const del = el("button", { type: "button", className: "link dark", textContent: "Törlés" });
     del.addEventListener("click", async () => {
       if (!confirm(`Törlöd „${b.title}” (${b.child_name}) mesekönyvet a listából?`)) return;
-      await api(`/api/books/${b.id}`, { method: "DELETE" });
-      li.remove();
+      try {
+        await api(`/api/books/${b.id}`, { method: "DELETE" });
+        li.remove();
+        showEmptyHistory();
+      } catch (ex) {
+        alert(ex.message || "A törlés nem sikerült, próbáld újra.");
+      }
     });
     actions.append(del);
     li.append(actions);

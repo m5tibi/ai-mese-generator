@@ -8,12 +8,13 @@ from html import escape
 from urllib.parse import parse_qs, quote
 
 import stripe
-from fastapi import Cookie, FastAPI, HTTPException, Request
+from fastapi import BackgroundTasks, Cookie, FastAPI, HTTPException, Request
+from fastapi.concurrency import run_in_threadpool
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, RedirectResponse, Response
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, EmailStr, Field, field_validator
 
-from . import config, db, emailer, pdf, templates
+from . import config, db, emailer, pdf, ratelimit, templates
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
 log = logging.getLogger("mese")
@@ -26,6 +27,7 @@ async def lifespan(app: FastAPI):
     db.init_db()
     templates.load_all()
     yield
+    db.close_db()
 
 
 app = FastAPI(lifespan=lifespan, docs_url=None, redoc_url=None)
@@ -64,6 +66,45 @@ def _login_response(customer_id: int, target: str = "/mesek") -> RedirectRespons
     return resp
 
 
+def _client_ip(request: Request) -> str:
+    # A Render proxy mögött a --proxy-headers / FORWARDED_ALLOW_IPS teszi ide a kliens címét.
+    # Hamisítható, ezért csak kiegészítő védelem; a fő korlát e-mail címre és globálisan szól.
+    return request.client.host if request.client else "?"
+
+
+def _rate_limit(key: str, limit: int, window_s: int):
+    if not ratelimit.allow(key, limit, window_s):
+        raise HTTPException(429, "Túl sok próbálkozás. Várj pár percet, és próbáld újra.")
+
+
+def _paid_email(s: dict) -> str | None:
+    """A Checkout session vevőjének e-mail címe, ha a session a mi termékünk fizetett vásárlása."""
+    if s.get("payment_status") != "paid":
+        return None
+    if (s.get("metadata") or {}).get("product") != config.STRIPE_PRODUCT_TAG:
+        return None
+    return (s.get("customer_details") or {}).get("email") or s.get("customer_email")
+
+
+def _send_welcome(email: str, customer_id: int):
+    emailer.send_welcome(email, db.create_login_link(customer_id))
+
+
+def _send_login_link(email: str, customer_id: int):
+    emailer.send_login_link(email, db.create_login_link(customer_id))
+
+
+def _record_purchase(s: dict, background: BackgroundTasks) -> int | None:
+    """Rögzíti a vásárlást (idempotens), új vásárlásnál háttérben üdvözlő levelet küld."""
+    email = _paid_email(s)
+    if not email:
+        return None
+    customer_id, is_new = db.record_purchase(email, s["id"], s.get("amount_total"), s.get("currency"))
+    if is_new:
+        background.add_task(_send_welcome, email, customer_id)
+    return customer_id
+
+
 def _ascii_filename(name: str) -> str:
     base = unicodedata.normalize("NFKD", name).encode("ascii", "ignore").decode()
     base = re.sub(r"[^A-Za-z0-9]+", "_", base).strip("_")
@@ -87,21 +128,32 @@ def app_page(mese_session: str | None = Cookie(default=None)):
 
 
 @app.get("/sikeres", include_in_schema=False)
-def payment_success(session_id: str = ""):
-    """A Stripe ide irányít fizetés után. Ellenőrizzük a fizetést és beléptetjük a vevőt."""
+def payment_success(background: BackgroundTasks, session_id: str = "",
+                    mese_session: str | None = Cookie(default=None)):
+    """A Stripe ide irányít fizetés után. Ellenőrizzük a fizetést és beléptetjük a vevőt.
+
+    Az URL a böngészőelőzményekben megmarad, ezért csak egyszer és csak a vásárlás után
+    röviddel léptet be; később a főoldalon kérhető belépési link."""
+    if not session_id.startswith("cs_"):
+        return RedirectResponse("/?hiba=fizetes", status_code=303)
     try:
-        session = stripe.checkout.Session.retrieve(session_id)
+        s = stripe.checkout.Session.retrieve(session_id).to_dict()
     except Exception:
         log.exception("Stripe session lekérési hiba")
         return RedirectResponse("/?hiba=fizetes", status_code=303)
-    if session.payment_status != "paid":
+    if s.get("payment_status") != "paid":
         return RedirectResponse("/?hiba=fizetes", status_code=303)
 
-    email = (session.customer_details.email if session.customer_details else None) or session.customer_email
-    customer_id, is_new = db.record_purchase(email, session.id, session.amount_total, session.currency)
-    if is_new:
-        emailer.send_welcome(email, db.create_login_link(customer_id))
-    return _login_response(customer_id)
+    if _record_purchase(s, background) is None:
+        log.warning("Fizetett, de nem hozzárendelhető Checkout session: %s", s.get("id"))
+        return RedirectResponse("/?hiba=ellenorzes", status_code=303)
+
+    customer_id = db.claim_success_login(s["id"], config.SUCCESS_LOGIN_MINUTES)
+    if customer_id:
+        return _login_response(customer_id)
+    if db.get_customer_by_session(mese_session):
+        return RedirectResponse("/mesek", status_code=303)
+    return RedirectResponse("/?hiba=sikeres", status_code=303)
 
 
 @app.get("/belepes", include_in_schema=False)
@@ -118,14 +170,19 @@ def login_page(token: str = "", mese_session: str | None = Cookie(default=None))
                         headers={"Cache-Control": "no-store", "Referrer-Policy": "no-referrer"})
 
 
-@app.post("/belepes", include_in_schema=False)
-async def login_with_link(request: Request):
-    form = parse_qs((await request.body()).decode("utf-8", "ignore"))
-    token = (form.get("token") or [""])[0]
+def _login_with_token(token: str) -> RedirectResponse:
     customer_id = db.consume_login_link(token) if token else None
     if not customer_id:
         return RedirectResponse("/?hiba=link", status_code=303)
     return _login_response(customer_id)
+
+
+@app.post("/belepes", include_in_schema=False)
+async def login_with_link(request: Request):
+    form = parse_qs((await request.body()).decode("utf-8", "ignore"))
+    token = (form.get("token") or [""])[0]
+    # Az adatbázis-hívás blokkoló, ne tartsa fel az eseményhurkot
+    return await run_in_threadpool(_login_with_token, token)
 
 
 @app.get("/healthz", include_in_schema=False)
@@ -140,7 +197,9 @@ class CheckoutIn(BaseModel):
 
 
 @app.post("/api/checkout")
-def create_checkout(body: CheckoutIn):
+def create_checkout(body: CheckoutIn, request: Request):
+    _rate_limit(f"checkout:ip:{_client_ip(request)}", 10, 600)
+    _rate_limit("checkout:all", 300, 3600)
     try:
         session = stripe.checkout.Session.create(
             mode="payment",
@@ -156,6 +215,7 @@ def create_checkout(body: CheckoutIn):
             success_url=f"{config.BASE_URL}/sikeres?session_id={{CHECKOUT_SESSION_ID}}",
             cancel_url=f"{config.BASE_URL}/",
             locale="hu",
+            metadata={"product": config.STRIPE_PRODUCT_TAG},
             managed_payments={"enabled": False},
         )
     except Exception:
@@ -164,24 +224,22 @@ def create_checkout(body: CheckoutIn):
     return {"url": session.url}
 
 
-@app.post("/webhook", include_in_schema=False)
-async def stripe_webhook(request: Request):
-    payload = await request.body()
+def _handle_webhook(payload: bytes, signature: str, background: BackgroundTasks):
     try:
-        stripe.Webhook.construct_event(
-            payload, request.headers.get("stripe-signature", ""), config.STRIPE_WEBHOOK_SECRET
-        )
+        stripe.Webhook.construct_event(payload, signature, config.STRIPE_WEBHOOK_SECRET)
     except Exception:
         raise HTTPException(400, "Érvénytelen aláírás")
 
     event = json.loads(payload)  # az aláírás már ellenőrizve
     if event.get("type") == "checkout.session.completed":
-        s = event["data"]["object"]
-        email = (s.get("customer_details") or {}).get("email") or s.get("customer_email")
-        if s.get("payment_status") == "paid" and email:
-            customer_id, is_new = db.record_purchase(email, s["id"], s.get("amount_total"), s.get("currency"))
-            if is_new:
-                emailer.send_welcome(email, db.create_login_link(customer_id))
+        _record_purchase(event["data"]["object"], background)
+
+
+@app.post("/webhook", include_in_schema=False)
+async def stripe_webhook(request: Request, background: BackgroundTasks):
+    payload = await request.body()
+    # Az adatbázis-hívás blokkoló, az e-mail pedig a válasz után, háttérben megy ki
+    await run_in_threadpool(_handle_webhook, payload, request.headers.get("stripe-signature", ""), background)
     return {"received": True}
 
 
@@ -192,11 +250,15 @@ class LoginLinkIn(BaseModel):
 
 
 @app.post("/api/login-link")
-def request_login_link(body: LoginLinkIn):
-    customer = db.get_customer_by_email(body.email)
-    if customer:
-        emailer.send_login_link(customer["email"], db.create_login_link(customer["id"]))
-    # Mindig ugyanazt válaszoljuk, hogy ne lehessen kideríteni, ki vásárolt
+def request_login_link(body: LoginLinkIn, request: Request, background: BackgroundTasks):
+    _rate_limit(f"login:ip:{_client_ip(request)}", 10, 900)
+    email = body.email.strip().lower()
+    # Címenként és összesen is korlátozzuk a leveleket (postafiók-elárasztás, Resend-kvóta).
+    # Túllépésnél is ugyanazt válaszoljuk, hogy ne lehessen kideríteni, ki vásárolt.
+    if ratelimit.allow(f"login:email:{email}", 3, 900) and ratelimit.allow("login:all", 300, 3600):
+        customer = db.get_customer_by_email(email)
+        if customer:
+            background.add_task(_send_login_link, customer["email"], customer["id"])
     return {"ok": True}
 
 

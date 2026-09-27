@@ -30,3 +30,7 @@ SESSION_COOKIE = "mese_session"
 SESSION_DAYS = 180
 LOGIN_LINK_MINUTES = 60
 COOKIE_SECURE = BASE_URL.startswith("https://")
+# A fizetés utáni /sikeres oldal ennyi percig (és csak egyszer) léptet be automatikusan
+SUCCESS_LOGIN_MINUTES = 60
+# A Checkout sessionök metadata-jában ezzel jelöljük a saját termékünket
+STRIPE_PRODUCT_TAG = "varazslatos-mesek"
